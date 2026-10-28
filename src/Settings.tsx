@@ -15,7 +15,7 @@ import {
 } from "./api";
 import { systemLang, translator, type Lang, type T } from "./i18n";
 import { acceleratorFromEvent, displayShortcut } from "./shortcut";
-import logo from "./logo.svg";
+import logo from "./app-icon.png";
 
 const LANGUAGES = ["auto", "en", "zh", "yue", "ja", "ko", "fr", "de", "es"] as const;
 
