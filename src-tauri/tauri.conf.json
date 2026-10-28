@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Zpeak",
+  "version": "0.1.0",
+  "identifier": "io.zenseai.zpeak",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Zpeak",
+        "width": 560,
+        "height": 720,
+        "minWidth": 480,
+        "minHeight": 560,
+        "visible": false,
+        "center": true,
+        "url": "index.html"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "dmg",
+      "app"
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "Zense AI",
+    "copyright": "© Zense AI. MIT License.",
+    "category": "Utility",
+    "shortDescription": "Speak anywhere — speech-to-text for students",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "TradChinese",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "./Entitlements.plist",
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkzOUU2RkZDMjIzQkIxNjMKUldSanNUc2kvRytlazhqZTMzK21US0JGZlYvdkVoaUszWTBTd09OMW5oOGNFTU0xSy9YWTdQL28K",
+      "endpoints": [
+        "https://github.com/Zense-AI/zpeak/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

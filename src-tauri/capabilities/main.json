@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Settings window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "updater:default",
+    "process:allow-restart",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://openrouter.ai/*" },
+        { "url": "https://zenseai.io/*" },
+        { "url": "https://www.zenseai.io/*" },
+        { "url": "https://app.zenseai.io/*" },
+        { "url": "https://github.com/Zense-AI/zpeak*" },
+        { "url": "x-apple.systempreferences:*" }
+      ]
+    }
+  ]
+}
