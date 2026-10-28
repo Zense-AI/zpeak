@@ -3,7 +3,6 @@ dist
 src-tauri/target
 src-tauri/gen
 branding/build/*.svg
-branding/options/preview.html
 .DS_Store
 *.key
 *.password
