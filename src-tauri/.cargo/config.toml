@@ -1,0 +1,3 @@
+[env]
+# whisper-rs-sys forwards CMAKE_* variables to the whisper.cpp CMake build.
+CMAKE_PROJECT_INCLUDE_BEFORE = { value = "whisper-cpu.cmake", relative = true }

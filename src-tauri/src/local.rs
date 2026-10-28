@@ -54,6 +54,22 @@ pub fn model(id: &str) -> Option<&'static ModelInfo> {
     MODELS.iter().find(|m| m.id == id)
 }
 
+/// whisper.cpp is built for AVX2 + FMA + F16C (`whisper-cpu.cmake`); running it on a
+/// CPU without them is an illegal-instruction crash, so older PCs must never reach it.
+pub fn cpu_supported() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    {
+        std::arch::is_x86_feature_detected!("avx")
+            && std::arch::is_x86_feature_detected!("avx2")
+            && std::arch::is_x86_feature_detected!("fma")
+            && std::arch::is_x86_feature_detected!("f16c")
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        true
+    }
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatus {
@@ -115,6 +131,9 @@ impl LocalEngine {
     }
 
     pub async fn download(&self, app: &AppHandle, id: &str) -> Result<(), String> {
+        if !cpu_supported() {
+            return Err("CpuUnsupported".into());
+        }
         let m = model(id).ok_or("UnknownModel")?;
         {
             let mut d = self.downloading.lock().unwrap();
@@ -216,6 +235,9 @@ impl LocalEngine {
         language: Option<&str>,
         script_hint: Option<&str>,
     ) -> Result<String, String> {
+        if !cpu_supported() {
+            return Err("CpuUnsupported".into());
+        }
         let m = model(id).ok_or("UnknownModel")?;
         let path = model_path(app, m)?;
         if !statuses(app).iter().any(|s| s.id == id && s.downloaded) {
@@ -288,6 +310,15 @@ pub fn clean(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CI reruns the tests under Intel SDE emulating older CPUs and sets this to what the
+    /// gate must answer there. Reaching this test at all proves startup survived that CPU.
+    #[test]
+    fn cpu_gate_matches_emulated_cpu() {
+        if let Ok(expected) = std::env::var("ZPEAK_EXPECT_LOCAL_SUPPORTED") {
+            assert_eq!(cpu_supported(), expected == "1");
+        }
+    }
 
     #[test]
     fn catalog_ids_are_unique_and_hashes_look_right() {

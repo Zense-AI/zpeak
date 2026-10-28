@@ -84,6 +84,7 @@ fn ready_error(core: &Core, app: &AppHandle) -> Option<&'static str> {
     match s.provider {
         None => Some("ChooseProvider"),
         Some(Provider::Zense) if !zense::is_signed_in() => Some("SignedOut"),
+        Some(Provider::Local) if !local::cpu_supported() => Some("CpuUnsupported"),
         Some(Provider::Local)
             if !local::statuses(app)
                 .iter()
@@ -270,6 +271,7 @@ struct View {
     zense_signed_in: bool,
     openrouter_key_set: bool,
     models: Vec<local::ModelStatus>,
+    local_supported: bool,
     downloading: Option<String>,
     accessibility: bool,
 }
@@ -283,6 +285,7 @@ fn get_state(app: AppHandle, core: State<Shared>) -> View {
         zense_signed_in: zense::is_signed_in(),
         openrouter_key_set: secrets::get(secrets::OPENROUTER_KEY).is_some(),
         models: local::statuses(&app),
+        local_supported: local::cpu_supported(),
         downloading: core.local.downloading(),
         accessibility: paste::accessibility_granted(),
     }

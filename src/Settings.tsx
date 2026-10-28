@@ -352,6 +352,10 @@ function LocalPanel({
 
   const downloading = view.downloading ?? (progress && progress.percent < 100 ? progress.id : null);
 
+  if (!view.localSupported) {
+    return <p className="muted">{t("err_CpuUnsupported")}</p>;
+  }
+
   return (
     <div className="stack">
       {view.models.map((m) => {

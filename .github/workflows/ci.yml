@@ -31,3 +31,18 @@ jobs:
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test --locked
+      # Students run old PCs. Replay the test binary on emulated CPUs: without AVX (Westmere),
+      # AVX without AVX2 (Sandy Bridge), and the minimum we build for (Haswell).
+      - name: Old-CPU check (Intel SDE)
+        if: runner.os == 'Windows'
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          curl -sSfL -o sde.tar.xz https://downloadmirror.intel.com/924984/sde-external-10.13.1-2026-07-28-win.tar.xz
+          mkdir sde && tar -xJf sde.tar.xz -C sde --strip-components=1
+          bin=$(cargo test --locked --lib --no-run --message-format=json 2>/dev/null | jq -r 'select(.executable != null and .target.name == "zpeak_lib") | .executable' | head -1)
+          test -n "$bin"
+          for cpu in wsm:0 snb:0 hsw:1; do
+            echo "== ${cpu%%:*}"
+            ZPEAK_EXPECT_LOCAL_SUPPORTED=${cpu##*:} ./sde/sde.exe -${cpu%%:*} -- "$bin" --test-threads=1
+          done

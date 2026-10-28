@@ -23,6 +23,7 @@ export type View = {
   zenseSignedIn: boolean;
   openrouterKeySet: boolean;
   models: ModelStatus[];
+  localSupported: boolean;
   downloading: string | null;
   accessibility: boolean;
 };
