@@ -113,7 +113,8 @@ jobs:
           export ZPEAK_BENCH_WAV="$(cygpath -w "$PWD")\\jfk.wav"
           for m in ${{ inputs.models }}; do
             for th in ""; do
-              ZPEAK_BENCH_THREADS=$th ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-$m.bin" \
-                cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1 | grep -E '^(BENCH|SYSINFO)|whisper_print_timings'
+              out=$(ZPEAK_BENCH_THREADS=$th ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-$m.bin" \
+                cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1) || { echo "$out" | tail -80; exit 1; }
+              echo "$out" | grep -E '^(BENCH|SYSINFO)|whisper_print_timings'
             done
           done
