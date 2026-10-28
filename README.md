@@ -33,29 +33,18 @@ You can also choose **Hold to talk** in Settings.
 
 On-device models download once from Hugging Face and are checked against a pinned SHA-256 hash before use. Large v3 Turbo is the only one that supports Cantonese.
 
-## Fast on old school computers
+## Small download
 
-Many students use old or low-cost laptops, so Zpeak is built to be small and light:
+Many students use old or low-cost laptops with little free space, so Zpeak is kept small:
 
-| | Measured |
+| | Size |
 | --- | --- |
 | Windows installer | **2.9 MB** (8.4 MB installed) |
 | Mac installer | 8.6 MB (one app for Apple silicon and Intel) |
-| Start-up | **0.3 s** from launch to the Settings window |
-| Waiting in the tray | **0.2 % CPU** and about **110 MB** of memory, most of it Microsoft's WebView2 |
-| Audio sent per recording | about 43 KB per second of speech (30 s ≈ 1.3 MB) |
 
-**On this computer (Whisper):** time to transcribe an [11-second speech clip](https://github.com/ggml-org/whisper.cpp/blob/master/samples/jfk.wav). Every model got every word right.
+On-device Whisper models are optional and download only if you choose that option: Tiny 78 MB, Base 148 MB, Small 488 MB, Large v3 Turbo 574 MB. Zense AI and OpenRouter need no model at all.
 
-| Model | Low-end PC (2 threads, 8 GB) | Apple M4 Pro |
-| --- | --- | --- |
-| Tiny | **1.8 s** | 0.06 s |
-| Base (default) | **3.9 s** | 0.10 s |
-| Small | 11.8 s | — |
-
-The low-end PC is a GitHub Actions Windows VM with one AMD EPYC core (2 threads) and 8 GB of RAM, running the real installer. [`bench.yml`](.github/workflows/bench.yml) reproduces these numbers.
-
-Local Whisper needs a processor from about 2013 or later (AVX2). On older computers, Zpeak hides it and suggests Zense AI instead, so it can't crash. CI runs Zpeak on emulated 2010, 2011 and 2013 Intel processors to check this. Zpeak needs Windows 10 or later, or macOS 11 or later.
+Local Whisper needs a processor from about 2013 or later (AVX2). On older computers Zpeak hides it and suggests Zense AI instead, so it can't crash. Zpeak needs Windows 10 or later, or macOS 11 or later.
 
 ## Security
 
