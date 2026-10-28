@@ -1,0 +1,93 @@
+name: Bench
+
+# Real numbers for the README: installs a release build on a clean Windows VM, measures
+# idle memory/CPU, and times local Whisper on the whisper.cpp JFK sample.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to measure
+        default: v0.1.0
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Machine
+        shell: pwsh
+        run: |
+          $cpu = Get-CimInstance Win32_Processor
+          "CPU: $($cpu.Name)  cores=$($cpu.NumberOfCores) threads=$($cpu.NumberOfLogicalProcessors)"
+          "RAM: {0:N1} GB" -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+          (Get-CimInstance Win32_OperatingSystem).Caption
+
+      - name: Install release build
+        shell: pwsh
+        run: |
+          gh release download "${{ inputs.tag }}" -p Zpeak-Windows-x64-Setup.exe
+          "Installer: {0:N1} MB" -f ((Get-Item Zpeak-Windows-x64-Setup.exe).Length / 1MB)
+          Start-Process .\Zpeak-Windows-x64-Setup.exe -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Zpeak" -Recurse -Filter zpeak.exe | Select-Object -First 1
+          "App binary: {0:N1} MB" -f ($exe.Length / 1MB)
+          "Installed size: {0:N1} MB" -f ((Get-ChildItem "$env:LOCALAPPDATA\Zpeak" -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+          "EXE=$($exe.FullName)" >> $env:GITHUB_ENV
+
+      - name: Idle memory and CPU
+        shell: pwsh
+        run: |
+          function Tree {
+            $all = Get-CimInstance Win32_Process
+            $root = $all | Where-Object { $_.Name -eq 'zpeak.exe' }
+            $ids = @($root.ProcessId); $found = $true
+            while ($found) {
+              $found = $false
+              foreach ($p in $all) { if ($ids -contains $p.ParentProcessId -and -not ($ids -contains $p.ProcessId)) { $ids += $p.ProcessId; $found = $true } }
+            }
+            Get-Process -Id $ids -ErrorAction SilentlyContinue
+          }
+          function CpuSecs($ps) { $s = 0.0; foreach ($p in $ps) { $s += $p.TotalProcessorTime.TotalSeconds }; $s }
+          function Report($label) {
+            $ps = Tree
+            $ws = ($ps | Measure-Object WorkingSet64 -Sum).Sum / 1MB
+            $pm = ($ps | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB
+            $cpu0 = CpuSecs $ps
+            Start-Sleep 30
+            $cpu1 = CpuSecs (Tree)
+            $cores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+            "{0}: processes={1} working set={2:N0} MB private={3:N0} MB cpu(30s)={4:N2}% of machine" -f $label, $ps.Count, $ws, $pm, (100 * ($cpu1 - $cpu0) / 30 / $cores)
+            $ps | Sort-Object WorkingSet64 -Descending | Format-Table Name, Id, @{n='WS MB';e={[int]($_.WorkingSet64/1MB)}}, @{n='Private MB';e={[int]($_.PrivateMemorySize64/1MB)}} | Out-String
+          }
+          $t = [Diagnostics.Stopwatch]::StartNew()
+          Start-Process $env:EXE
+          while (-not (Get-Process zpeak -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })) {
+            if ($t.Elapsed.TotalSeconds -gt 60) { throw 'no window after 60 s' }
+            Start-Sleep -Milliseconds 50
+          }
+          "Launch to settings window: {0:N2} s (first run, cold)" -f $t.Elapsed.TotalSeconds
+          Start-Sleep 10
+          Report 'Settings window open'
+          [void](Get-Process zpeak | Where-Object { $_.MainWindowHandle -ne 0 }).CloseMainWindow()
+          Start-Sleep 15
+          Report 'In tray, settings closed'
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: v1-rust
+      - name: Local Whisper speed
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          curl -sSfL -o jfk.wav https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav
+          for m in tiny base small; do curl -sSfL -o ggml-$m.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$m.bin; done
+          export ZPEAK_BENCH_WAV="$(cygpath -w "$PWD")\\jfk.wav"
+          for m in tiny base small; do
+            for th in "" 2; do
+              ZPEAK_BENCH_THREADS=$th ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-$m.bin" \
+                cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1 | grep '^BENCH'
+            done
+          done

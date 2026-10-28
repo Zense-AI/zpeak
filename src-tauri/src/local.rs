@@ -320,6 +320,47 @@ mod tests {
         }
     }
 
+    /// Speed numbers for the README: `ZPEAK_TEST_MODEL` + `ZPEAK_BENCH_WAV` (16 kHz mono).
+    #[test]
+    #[ignore = "benchmark; needs ZPEAK_TEST_MODEL and ZPEAK_BENCH_WAV"]
+    fn bench_transcribe() {
+        let model = std::env::var("ZPEAK_TEST_MODEL").unwrap();
+        let mut reader = hound::WavReader::open(std::env::var("ZPEAK_BENCH_WAV").unwrap()).unwrap();
+        let samples: Vec<f32> = reader.samples::<i16>().map(|s| s.unwrap() as f32 / i16::MAX as f32).collect();
+        let audio_secs = samples.len() as f64 / 16_000.0;
+        let threads = std::env::var("ZPEAK_BENCH_THREADS")
+            .ok()
+            .and_then(|t| t.parse().ok())
+            .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get().min(8) as i32).unwrap_or(4));
+
+        let t0 = std::time::Instant::now();
+        let ctx = WhisperContext::new_with_params(&model, WhisperContextParameters::default()).unwrap();
+        let load = t0.elapsed().as_secs_f64();
+        let mut state = ctx.create_state().unwrap();
+        let mut runs = Vec::new();
+        let mut text = String::new();
+        for _ in 0..3 {
+            let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+            params.set_n_threads(threads);
+            params.set_language(Some("en"));
+            params.set_no_context(true);
+            let t = std::time::Instant::now();
+            state.full(params, &samples).unwrap();
+            runs.push(t.elapsed().as_secs_f64());
+            text = (0..state.full_n_segments().unwrap())
+                .map(|i| state.full_get_segment_text(i).unwrap())
+                .collect();
+        }
+        runs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!(
+            "BENCH model={} threads={threads} audio={audio_secs:.1}s load={load:.2}s median={:.2}s rtf={:.3} text={}",
+            model.rsplit(['/', '\\']).next().unwrap(),
+            runs[1],
+            runs[1] / audio_secs,
+            text.trim()
+        );
+    }
+
     /// Under SDE on the minimum CPU this runs the real whisper.cpp kernels, so any
     /// instruction above the pinned level fails the run.
     #[test]
