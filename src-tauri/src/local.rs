@@ -320,6 +320,21 @@ mod tests {
         }
     }
 
+    /// Under SDE on the minimum CPU this runs the real whisper.cpp kernels, so any
+    /// instruction above the pinned level fails the run.
+    #[test]
+    #[ignore = "needs ZPEAK_TEST_MODEL pointing at ggml-tiny.bin"]
+    fn whisper_runs_on_this_cpu() {
+        let path = std::env::var("ZPEAK_TEST_MODEL").unwrap();
+        let ctx = WhisperContext::new_with_params(&path, WhisperContextParameters::default()).unwrap();
+        let mut state = ctx.create_state().unwrap();
+        let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        params.set_n_threads(2);
+        params.set_language(Some("en"));
+        let tone: Vec<f32> = (0..16_000).map(|i| (i as f32 * 0.05).sin() * 0.1).collect();
+        state.full(params, &tone).unwrap();
+    }
+
     #[test]
     fn catalog_ids_are_unique_and_hashes_look_right() {
         for (i, m) in MODELS.iter().enumerate() {

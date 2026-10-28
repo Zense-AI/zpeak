@@ -37,6 +37,8 @@ jobs:
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
         with:
+          # Bump when src-tauri/whisper-cpu.cmake changes: cached whisper.cpp builds ignore it.
+          prefix-key: v1-rust
           workspaces: src-tauri
       - run: npm ci
 

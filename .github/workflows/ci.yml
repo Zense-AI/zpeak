@@ -25,6 +25,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          # Bump when src-tauri/whisper-cpu.cmake changes: cached whisper.cpp builds ignore it.
+          prefix-key: v1-rust
           workspaces: src-tauri
       - run: npm ci
       - run: npm run build
@@ -46,3 +48,11 @@ jobs:
             echo "== ${cpu%%:*}"
             ZPEAK_EXPECT_LOCAL_SUPPORTED=${cpu##*:} ./sde/sde.exe -${cpu%%:*} -- "$bin" --test-threads=1
           done
+          curl -sSfL -o ggml-tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
+          echo "== hsw whisper inference"
+          export ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-tiny.bin"
+          ./sde/sde.exe -hsw -- "$bin" --ignored --exact local::tests::whisper_runs_on_this_cpu
+          echo "== snb whisper inference must crash (proves SDE catches AVX2)"
+          if ./sde/sde.exe -snb -- "$bin" --ignored --exact local::tests::whisper_runs_on_this_cpu; then
+            echo "whisper ran on a CPU without AVX2 — SDE check is not effective"; exit 1
+          fi
