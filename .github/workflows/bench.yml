@@ -94,17 +94,10 @@ jobs:
         with:
           workspaces: src-tauri
           prefix-key: v1-rust
-      - uses: ilammy/msvc-dev-cmd@v1
-        if: inputs.compiler == 'clang'
       - name: Use clang-cl for whisper.cpp
         if: inputs.compiler == 'clang'
         shell: bash
-        run: |
-          echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
-          echo "CC=clang-cl" >> $GITHUB_ENV
-          echo "CXX=clang-cl" >> $GITHUB_ENV
-          echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$(cygpath -w "$(which -a link.exe | grep -i msvc | head -1)")" >> $GITHUB_ENV
-          clang-cl --version; ninja --version
+        run: echo "CMAKE_GENERATOR_TOOLSET=ClangCL" >> $GITHUB_ENV
       - name: Local Whisper speed
         shell: bash
         working-directory: src-tauri
