@@ -331,7 +331,7 @@ mod tests {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_n_threads(2);
         params.set_language(Some("en"));
-        let tone: Vec<f32> = (0..16_000).map(|i| (i as f32 * 0.05).sin() * 0.1).collect();
+        let tone: Vec<f32> = (0..48_000).map(|i| (i as f32 * 0.05).sin() * 0.1).collect();
         state.full(params, &tone).unwrap();
     }
 

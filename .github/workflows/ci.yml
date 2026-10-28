@@ -50,6 +50,7 @@ jobs:
           done
           curl -sSfL -o ggml-tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
           echo "== hsw whisper inference"
+          ./sde/sde.exe -help-long 2>&1 | grep -i -A1 "chip" | head -40 || true
           export ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-tiny.bin"
           ./sde/sde.exe -hsw -- "$bin" --ignored --exact local::tests::whisper_runs_on_this_cpu
           echo "== snb whisper inference must crash (proves SDE catches AVX2)"
