@@ -335,7 +335,9 @@ mod tests {
 
         println!("SYSINFO {}", whisper_rs::print_system_info());
         let t0 = std::time::Instant::now();
-        let ctx = WhisperContext::new_with_params(&model, WhisperContextParameters::default()).unwrap();
+        let mut cp = WhisperContextParameters::default();
+        cp.use_gpu(std::env::var("ZPEAK_BENCH_CPU").is_err());
+        let ctx = WhisperContext::new_with_params(&model, cp).unwrap();
         let load = t0.elapsed().as_secs_f64();
         let mut state = ctx.create_state().unwrap();
         let mut runs = Vec::new();

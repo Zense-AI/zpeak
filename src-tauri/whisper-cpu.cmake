@@ -7,3 +7,10 @@ set(GGML_AVX ON CACHE BOOL "" FORCE)
 set(GGML_AVX2 ON CACHE BOOL "" FORCE)
 set(GGML_FMA ON CACHE BOOL "" FORCE)
 set(GGML_F16C ON CACHE BOOL "" FORCE)
+
+# cmake-rs replaces CMAKE_<LANG>_FLAGS_RELEASE for MSVC and drops every /O flag, which
+# leaves whisper.cpp unoptimised (about 8x slower). Restore CMake's MSVC release defaults.
+if(CMAKE_HOST_WIN32)
+  set(CMAKE_C_FLAGS_RELEASE "/MD /O2 /Ob2 /DNDEBUG" CACHE STRING "" FORCE)
+  set(CMAKE_CXX_FLAGS_RELEASE "/MD /O2 /Ob2 /DNDEBUG" CACHE STRING "" FORCE)
+endif()

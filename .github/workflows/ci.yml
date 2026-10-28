@@ -26,7 +26,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # Bump when src-tauri/whisper-cpu.cmake changes: cached whisper.cpp builds ignore it.
-          prefix-key: v1-rust
+          prefix-key: v2-rust
           workspaces: src-tauri
       - run: npm ci
       - run: npm run build

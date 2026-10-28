@@ -97,7 +97,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          prefix-key: v1-rust
+          prefix-key: v2-rust
       - name: Use clang-cl for whisper.cpp
         if: inputs.compiler == 'clang'
         shell: bash
@@ -125,3 +125,17 @@ jobs:
           cmake -S ../wcpp -B ../wcpp/build -DGGML_NATIVE=ON -DWHISPER_BUILD_TESTS=OFF > /dev/null
           cmake --build ../wcpp/build --config Release -j 2 --target whisper-cli > /dev/null
           for i in 1 2; do ../wcpp/build/bin/Release/whisper-cli.exe -m ggml-tiny.bin -f jfk.wav -t 2 -l en 2>&1 | grep -E 'system_info|total time|encode time|mel time|decode time'; done
+      - name: whisper.cpp build flags (ours vs upstream)
+        if: always()
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          c=$(ls -d target/release/build/whisper-rs-sys-*/out/build/CMakeCache.txt | head -1)
+          grep -E '^(CMAKE_BUILD_TYPE|CMAKE_C_FLAGS|CMAKE_CXX_FLAGS|CMAKE_C_FLAGS_RELEASE|CMAKE_CXX_FLAGS_RELEASE|CMAKE_GENERATOR|GGML_[A-Z0-9_]+):' "$c"
+          p=$(find "$(dirname "$c")" -name 'ggml-cpu.vcxproj' | head -1)
+          echo "== ours ggml-cpu.vcxproj"; grep -oE '<(Optimization|EnableEnhancedInstructionSet|RuntimeLibrary|AdditionalOptions|InlineFunctionExpansion|BasicRuntimeChecks|DebugInformationFormat)>[^<]*' "$p" | sort | uniq -c
+          if [ -d ../wcpp/build ]; then
+            echo "== upstream"; grep -E '^(CMAKE_BUILD_TYPE|CMAKE_C_FLAGS|CMAKE_C_FLAGS_RELEASE):' ../wcpp/build/CMakeCache.txt
+            q=$(find ../wcpp/build -name 'ggml-cpu.vcxproj' | head -1)
+            grep -oE '<(Optimization|EnableEnhancedInstructionSet|RuntimeLibrary|AdditionalOptions|InlineFunctionExpansion|BasicRuntimeChecks|DebugInformationFormat)>[^<]*' "$q" | sort | uniq -c
+          fi
