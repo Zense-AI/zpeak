@@ -333,6 +333,7 @@ mod tests {
             .and_then(|t| t.parse().ok())
             .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get().min(8) as i32).unwrap_or(4));
 
+        println!("SYSINFO {}", whisper_rs::print_system_info());
         let t0 = std::time::Instant::now();
         let ctx = WhisperContext::new_with_params(&model, WhisperContextParameters::default()).unwrap();
         let load = t0.elapsed().as_secs_f64();
@@ -340,6 +341,7 @@ mod tests {
         let mut runs = Vec::new();
         let mut text = String::new();
         for _ in 0..3 {
+            ctx.reset_timings();
             let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
             params.set_n_threads(threads);
             params.set_language(Some("en"));
@@ -351,6 +353,7 @@ mod tests {
                 .map(|i| state.full_get_segment_text(i).unwrap())
                 .collect();
         }
+        ctx.print_timings();
         runs.sort_by(|a, b| a.partial_cmp(b).unwrap());
         println!(
             "BENCH model={} threads={threads} audio={audio_secs:.1}s load={load:.2}s median={:.2}s rtf={:.3} text={}",

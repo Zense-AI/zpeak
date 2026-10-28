@@ -8,6 +8,13 @@ on:
       tag:
         description: Release tag to measure
         default: v0.1.0
+      models:
+        description: Whisper models to time
+        default: tiny base small
+      app:
+        description: Also install the app and measure idle memory
+        type: boolean
+        default: true
 
 # Draft releases are only visible to a token that can write releases.
 permissions:
@@ -29,6 +36,7 @@ jobs:
           (Get-CimInstance Win32_OperatingSystem).Caption
 
       - name: Install release build
+        if: inputs.app
         shell: pwsh
         run: |
           gh release download "${{ inputs.tag }}" -p Zpeak-Windows-x64-Setup.exe
@@ -40,6 +48,7 @@ jobs:
           "EXE=$($exe.FullName)" >> $env:GITHUB_ENV
 
       - name: Idle memory and CPU
+        if: inputs.app
         shell: pwsh
         run: |
           function Tree {
@@ -87,11 +96,11 @@ jobs:
         working-directory: src-tauri
         run: |
           curl -sSfL -o jfk.wav https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav
-          for m in tiny base small; do curl -sSfL -o ggml-$m.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$m.bin; done
+          for m in ${{ inputs.models }}; do curl -sSfL -o ggml-$m.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$m.bin; done
           export ZPEAK_BENCH_WAV="$(cygpath -w "$PWD")\\jfk.wav"
-          for m in tiny base small; do
+          for m in ${{ inputs.models }}; do
             for th in ""; do
               ZPEAK_BENCH_THREADS=$th ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-$m.bin" \
-                cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1 | grep '^BENCH'
+                cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1 | grep -E '^(BENCH|SYSINFO)|whisper_print_timings'
             done
           done
