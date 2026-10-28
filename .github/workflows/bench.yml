@@ -9,6 +9,10 @@ on:
         description: Release tag to measure
         default: v0.1.0
 
+# Draft releases are only visible to a token that can write releases.
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -86,7 +90,7 @@ jobs:
           for m in tiny base small; do curl -sSfL -o ggml-$m.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$m.bin; done
           export ZPEAK_BENCH_WAV="$(cygpath -w "$PWD")\\jfk.wav"
           for m in tiny base small; do
-            for th in "" 2; do
+            for th in ""; do
               ZPEAK_BENCH_THREADS=$th ZPEAK_TEST_MODEL="$(cygpath -w "$PWD")\\ggml-$m.bin" \
                 cargo test --release --locked -q --lib -- --ignored --exact local::tests::bench_transcribe --nocapture 2>&1 | grep '^BENCH'
             done
