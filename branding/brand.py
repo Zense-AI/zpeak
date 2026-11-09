@@ -109,8 +109,9 @@ def horizontal(ink_mark, ink_text):
     ty = (mh - cap * k) / 2                   # caps centred on the mark
     total_w = mw + gap + tw * k
     total_h = max(mh, ty + (cap + desc) * k)
-    body = (f'<path fill="{ink_mark}" d="{mark_path(bars, -x0, -y0)}"/>'
-            f'<path fill="{ink_text}" transform="translate({mw + gap:.2f} {ty:.2f}) scale({k:.5f})" d="{d}"/>')
+    body = f'<path fill="{ink_mark}" d="{mark_path(bars, -x0, -y0)}"/>' if ink_mark else ''
+    if ink_text:
+        body += f'<path fill="{ink_text}" transform="translate({mw + gap:.2f} {ty:.2f}) scale({k:.5f})" d="{d}"/>'
     return svg_doc(total_w, total_h, body)
 
 
@@ -138,17 +139,18 @@ def render_png(svg_text, out, width, ss=2):
     im = Image.new('RGBA', (width * ss, height * ss))
     im.putdata(px)
     im = im.resize((width, height), Image.LANCZOS)
-    im.save(out, dpi=(72, 72))
+    if out:
+        im.save(out, dpi=(72, 72))
     return im
 
 
-def flatten(im, bg_hex, out_rgb, out_cmyk, fg_hex):
+def flatten(im, bg_hex, out_rgb, out_cmyk, layers):
+    """layers: [(alpha image, ink)] painted in order, so each ink lands on its exact official CMYK value."""
     bg = Image.new('RGBA', im.size, bg_hex)
     Image.alpha_composite(bg, im).convert('RGB').save(out_rgb, quality=95, dpi=(72, 72))
-    # CMYK built from coverage so brand colours land on the exact official CMYK values.
-    a = im.getchannel('A')
-    fgc, bgc = CMYK[fg_hex], CMYK[bg_hex]
-    chans = [a.point(lambda v, f=f, b=b: round(b + (f - b) * v / 255)) for f, b in zip(fgc, bgc)]
+    chans = [Image.new('L', im.size, v) for v in CMYK[bg_hex]]
+    for alpha, ink in layers:
+        chans = [Image.composite(Image.new('L', im.size, v), c, alpha) for v, c in zip(CMYK[ink], chans)]
     Image.merge('CMYK', chans).save(out_cmyk, quality=95, dpi=(72, 72))
 
 
@@ -166,10 +168,13 @@ def build_kit():
                 os.makedirs(os.path.join(base, sub), exist_ok=True)
             open(os.path.join(base, 'SVG', f'SVG-Zpeak-{tag}-{name}-RGB.svg'), 'w').write(svg)
             im = render_png(svg, os.path.join(base, 'PNG', f'RGB-Zpeak-{tag}-{name}.png'), png_w)
+            layers = [(render_png(maker(ink_mark, None), None, png_w).getchannel('A'), ink_mark)]
+            if group != 'Logo only':
+                layers.append((render_png(maker(None, ink_text), None, png_w).getchannel('A'), ink_text))
             flatten(im, bg,
                     os.path.join(base, folders[name], 'RGB', 'JPG', f'RGB-Zpeak-{tag}-{name}.jpg'),
                     os.path.join(base, folders[name], 'CMYK', 'JPG', f'CMYK-Zpeak-{tag}-{name}.jpg'),
-                    ink_mark)
+                    layers)
 
 
 def app_icon_svg():
