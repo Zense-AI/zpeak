@@ -1,6 +1,6 @@
 [package]
 name = "zpeak"
-version = "0.1.0"
+version = "0.1.1"
 description = "Speak anywhere: open-source speech-to-text for students"
 authors = ["Zense AI"]
 license = "MIT"

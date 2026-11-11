@@ -51,7 +51,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Zpeak ${{ github.ref_name }}
-          releaseBody: See the assets below. Windows → Zpeak-Windows-x64-Setup.exe · Mac (Apple silicon and Intel) → Zpeak-macOS-Universal.dmg · Code signing policy and privacy → https://www.zenseai.io/en/zpeak#code-signing-policy
+          releaseBody: See the assets below. Windows → Zpeak-Windows-x64-Setup.exe · Mac (Apple silicon and Intel) → Zpeak-macOS-Universal.dmg · Code signing policy and privacy → https://www.zenseai.io/zpeak#code-signing-policy
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

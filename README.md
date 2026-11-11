@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  Windows 10 or later · macOS 11 or later (Apple silicon and Intel) · <a href="https://www.zenseai.io/en/zpeak">Website</a>
+  Windows 10 or later · macOS 11 or later (Apple silicon and Intel) · <a href="https://www.zenseai.io/zpeak">Website</a>
 </p>
 
 ## Why
@@ -72,7 +72,7 @@ This program will not transfer any information to other networked systems unless
 
 ## Code signing policy
 
-Windows releases are signed with free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (application in progress; until it is approved, Windows builds are unsigned). The same policy is on the [Zpeak website](https://www.zenseai.io/en/zpeak#code-signing-policy).
+Windows releases are signed with free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (application in progress; until it is approved, Windows builds are unsigned). The same policy is on the [Zpeak website](https://www.zenseai.io/zpeak#code-signing-policy).
 
 Signed files are built by GitHub Actions from this repository's `release.yml`, and every release is approved by hand before it is signed.
 
