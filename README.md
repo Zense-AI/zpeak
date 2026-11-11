@@ -6,7 +6,8 @@
 
 <p align="center">
   <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-Windows-x64-Setup.exe">Download for Windows</a> ·
-  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-macOS-Universal.dmg">Download for Mac</a>
+  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-macOS-Universal.dmg">Download for Mac</a> ·
+  <a href="https://www.zenseai.io/en/zpeak">Website</a>
 </p>
 
 ## Why
@@ -56,6 +57,27 @@ Zpeak is open source, so it ships **no secrets**.
 - Tokens and your OpenRouter key are stored in the OS keychain (Windows Credential Manager / macOS Keychain), never in plain files.
 - Recordings are kept in memory only and never written to disk.
 
+## Privacy
+
+Zpeak has no analytics, telemetry, or crash reporting. It only connects to:
+
+- **The speech-to-text option you choose.** Zense AI receives your recording to transcribe it ([Zense AI privacy policy](https://www.zenseai.io/en/legal/privacy-policy)). OpenRouter and the model you pick receive it if you choose OpenRouter ([OpenRouter privacy policy](https://openrouter.ai/privacy)). On this computer (Whisper) sends nothing.
+- **Hugging Face**, only when you download an on-device Whisper model.
+- **GitHub**, to check this repository's releases for updates when you open Settings.
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+## Code signing policy
+
+Windows releases are signed with free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (application in progress; until it is approved, Windows builds are unsigned). The same policy is on the [Zpeak website](https://www.zenseai.io/en/zpeak#code-signing-policy).
+
+Signed files are built by GitHub Actions from this repository's `release.yml`, and every release is approved by hand before it is signed.
+
+- Committers and reviewers: [@EricChuDev](https://github.com/EricChuDev), [@lingloktin](https://github.com/lingloktin)
+- Approvers: [Zense AI organisation owners](https://github.com/orgs/Zense-AI/people?query=role%3Aowner)
+
+Privacy: see [Privacy](#privacy) above.
+
 ## Installing unsigned builds
 
 Zpeak builds aren't code-signed yet, so your computer will warn you the first time.
@@ -64,6 +86,13 @@ Zpeak builds aren't code-signed yet, so your computer will warn you the first ti
 - **macOS:** open the DMG and drag Zpeak to Applications. On first launch, macOS blocks it. Go to **System Settings → Privacy & Security** and click **Open Anyway**. To paste into other apps, allow Zpeak under **Accessibility**. After an update you may need to turn that permission off and on again.
 
 Zpeak updates itself. Updates are signed, and the app checks each update's signature before installing it.
+
+## Uninstalling
+
+- **Windows:** Settings → Apps → Installed apps → Zpeak → Uninstall.
+- **macOS:** quit Zpeak from the menu bar and drag it from Applications to the Bin.
+
+To remove Zpeak's keychain entries too, first sign out of Zense AI and remove your OpenRouter key in Settings. Downloaded Whisper models stay in Zpeak's app data folder until you delete them in Settings.
 
 ## Development
 

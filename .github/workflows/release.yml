@@ -51,7 +51,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Zpeak ${{ github.ref_name }}
-          releaseBody: See the assets below. Windows → Zpeak-Windows-x64-Setup.exe · Mac (Apple silicon and Intel) → Zpeak-macOS-Universal.dmg
+          releaseBody: See the assets below. Windows → Zpeak-Windows-x64-Setup.exe · Mac (Apple silicon and Intel) → Zpeak-macOS-Universal.dmg · Code signing policy and privacy → https://www.zenseai.io/en/zpeak#code-signing-policy
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
@@ -67,3 +67,62 @@ jobs:
           test -n "$src"
           cp "$src" "${{ matrix.stable_name }}"
           gh release upload "${{ github.ref_name }}" "${{ matrix.stable_name }}" --clobber
+          mkdir -p unsigned && cp "$src" unsigned/
+
+      # Windows code signing (SignPath Foundation). Off until the repo variable
+      # SIGNPATH_ORGANIZATION_ID and secret SIGNPATH_API_TOKEN are set.
+      - id: unsigned
+        if: matrix.os == 'windows-latest' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-unsigned
+          path: unsigned/
+          if-no-files-found: error
+
+      - if: steps.unsigned.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'zpeak' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Every release is approved by hand in SignPath; wait up to 5 hours.
+          wait-for-completion-timeout-in-seconds: 18000
+          output-artifact-directory: signed
+
+      - name: Replace the Windows installer with the signed one
+        if: steps.unsigned.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          shopt -s nullglob
+          files=(signed/*"${{ matrix.suffix }}")
+          exe="${files[0]:-}"
+          test -n "$exe"
+          # The updater signature must cover the signed bytes, not the original build.
+          npx tauri signer sign "$exe"
+          cp "$exe" "${{ matrix.stable_name }}"
+          gh release upload "${{ github.ref_name }}" "$exe" "$exe.sig" "${{ matrix.stable_name }}" --clobber
+
+  # Runs after both platforms so the macOS job can't rewrite latest.json with
+  # the pre-signing Windows signature.
+  windows-updater-signature:
+    needs: build
+    if: vars.SIGNPATH_ORGANIZATION_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point latest.json at the signed Windows installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$TAG" --repo "$REPO" -p latest.json -p '*-setup.exe.sig' -D out
+          sig=$(cat out/*-setup.exe.sig)
+          jq --arg sig "$sig" '.platforms |= with_entries(if (.key | startswith("windows-")) then .value.signature = $sig else . end)' out/latest.json > latest.json
+          gh release upload "$TAG" --repo "$REPO" latest.json --clobber
