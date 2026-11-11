@@ -5,9 +5,12 @@
 <p align="center">Speak anywhere. Press <kbd>Alt</kbd> + <kbd>Z</kbd>, talk, and your words appear where you're typing.</p>
 
 <p align="center">
-  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-Windows-x64-Setup.exe">Download for Windows</a> ·
-  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-macOS-Universal.dmg">Download for Mac</a> ·
-  <a href="https://www.zenseai.io/en/zpeak">Website</a>
+  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-0078D4?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0yIDQuNCAxMCAzLjN2Ny45SDJ6TTExIDMuMiAyMiAxLjd2OS41SDExek0yIDEyLjJoOHY3LjlsLTgtMS4xek0xMSAxMi4yaDExdjkuNmwtMTEtMS41eiIvPjwvc3ZnPg%3D%3D" alt="Download for Windows" height="36" /></a>
+  <a href="https://github.com/Zense-AI/zpeak/releases/latest/download/Zpeak-macOS-Universal.dmg"><img src="https://img.shields.io/badge/Download_for_Mac-111111?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac" height="36" /></a>
+</p>
+
+<p align="center">
+  Windows 10 or later · macOS 11 or later (Apple silicon and Intel) · <a href="https://www.zenseai.io/en/zpeak">Website</a>
 </p>
 
 ## Why
