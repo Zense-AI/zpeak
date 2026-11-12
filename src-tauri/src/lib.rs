@@ -8,7 +8,7 @@ mod zense;
 
 use serde::Serialize;
 use settings::{Provider, RecordMode, Settings};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::image::Image;
@@ -31,6 +31,9 @@ struct Core {
     recording: Mutex<Option<(audio::Recording, Instant)>>,
     zense: zense::ZenseClient,
     local: local::LocalEngine,
+    /// User chose "Not now" on the Accessibility card. Cleared after a paste
+    /// that could only copy, so the instruction comes back when it matters.
+    permit_snoozed: AtomicBool,
 }
 
 type Shared = Arc<Core>;
@@ -70,11 +73,52 @@ fn set_tray_recording(app: &AppHandle, recording: bool) {
 }
 
 fn show_settings(app: &AppHandle) {
+    hide_permit(app);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+fn settings_visible(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
+fn hide_permit(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("permit") {
+        let _ = w.hide();
+    }
+}
+
+fn show_permit(app: &AppHandle) {
+    let Some(w) = app.get_webview_window("permit") else { return };
+    let _ = w.center();
+    let _ = w.unminimize();
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
+/// macOS Accessibility card. Shown on first setup, and whenever Settings is
+/// closed, until the permission is granted or the user chooses "Not now".
+fn present_permit(app: &AppHandle) {
+    if !cfg!(target_os = "macos") || paste::accessibility_granted() {
+        hide_permit(app);
+        return;
+    }
+    if settings_visible(app) {
+        hide_permit(app);
+        return;
+    }
+    let snoozed = app
+        .try_state::<Shared>()
+        .is_some_and(|core| core.permit_snoozed.load(Ordering::Relaxed));
+    if snoozed {
+        return;
+    }
+    show_permit(app);
 }
 
 /// Everything needed to transcribe must be in place before we record, so a
@@ -183,7 +227,13 @@ fn stop_recording(app: &AppHandle, core: &Shared) {
         };
         match outcome {
             Ok(paste::Outcome::Pasted) => hud(&app, "idle", None),
-            Ok(paste::Outcome::CopiedOnly) => hud(&app, "copied", None),
+            Ok(paste::Outcome::CopiedOnly) => {
+                hud(&app, "copied", None);
+                if let Some(core) = app.try_state::<Shared>() {
+                    core.permit_snoozed.store(false, Ordering::Relaxed);
+                }
+                present_permit(&app);
+            }
             Err(code) => {
                 if code == "SignedOut" {
                     let _ = app.emit("zense-signed-out", ());
@@ -372,6 +422,31 @@ fn request_accessibility() -> bool {
 }
 
 #[tauri::command]
+fn dismiss_accessibility_prompt(app: AppHandle) {
+    if let Some(core) = app.try_state::<Shared>() {
+        core.permit_snoozed.store(true, Ordering::Relaxed);
+    }
+    hide_permit(&app);
+    let first_setup = app
+        .try_state::<Shared>()
+        .is_some_and(|core| core.settings.lock().unwrap().provider.is_none());
+    if first_setup {
+        show_settings(&app);
+    }
+}
+
+#[tauri::command]
+fn finish_accessibility_prompt(app: AppHandle) {
+    hide_permit(&app);
+    let first_setup = app
+        .try_state::<Shared>()
+        .is_some_and(|core| core.settings.lock().unwrap().provider.is_none());
+    if first_setup && !settings_visible(&app) {
+        show_settings(&app);
+    }
+}
+
+#[tauri::command]
 fn toggle_recording(app: AppHandle) {
     toggle_from_menu(&app);
 }
@@ -428,6 +503,56 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
     update_tray_label(app);
+    Ok(())
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn permit_effects() -> tauri::utils::config::WindowEffectsConfig {
+    let mut effects = tauri::window::EffectsBuilder::new();
+    #[cfg(target_os = "macos")]
+    {
+        effects = effects.effect(tauri::window::Effect::HudWindow).radius(16.0);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Mica follows the system light/dark setting on Windows 11.
+        // Acrylic is the Windows 10 fallback. Tauri uses the first one the OS supports.
+        effects = effects
+            .effect(tauri::window::Effect::Mica)
+            .effect(tauri::window::Effect::Acrylic);
+    }
+    effects.build()
+}
+
+/// Borderless card. macOS clips it with a HUD material and a native shadow.
+/// Windows has no HUD radius, so the page rounds itself and we skip the
+/// rectangular DWM shadow, which would square the card off.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn build_permit(app: &AppHandle) -> tauri::Result<()> {
+    let mut window = WebviewWindowBuilder::new(app, "permit", WebviewUrl::App("index.html#permit".into()))
+        .title("Zpeak")
+        .inner_size(400.0, 520.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .center()
+        .effects(permit_effects());
+    #[cfg(target_os = "macos")]
+    {
+        window = window.shadow(true).visible_on_all_workspaces(true);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        window = window.shadow(false);
+    }
+    window.build()?;
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn build_permit(_app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
@@ -490,6 +615,7 @@ pub fn run() {
                 recording: Mutex::new(None),
                 zense: zense::ZenseClient::new(),
                 local: local::LocalEngine::default(),
+                permit_snoozed: AtomicBool::new(false),
             }));
 
             if handle.global_shortcut().register(shortcut.as_str()).is_err() {
@@ -497,18 +623,40 @@ pub fn run() {
             }
             build_tray(&handle)?;
             build_overlay(&handle)?;
+            build_permit(&handle)?;
 
             let hidden = std::env::args().any(|a| a == "--hidden");
-            if first_run || !hidden {
+            let needs_type = cfg!(target_os = "macos") && !paste::accessibility_granted();
+            if needs_type && (first_run || hidden) {
+                show_permit(&handle);
+            } else if first_run || !hidden {
                 show_settings(&handle);
             }
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
+                let app = window.app_handle().clone();
+                match window.label() {
+                    "main" => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                        present_permit(&app);
+                    }
+                    "permit" => {
+                        api.prevent_close();
+                        if let Some(core) = app.try_state::<Shared>() {
+                            core.permit_snoozed.store(true, Ordering::Relaxed);
+                        }
+                        let _ = window.hide();
+                        let first_setup = app
+                            .try_state::<Shared>()
+                            .is_some_and(|core| core.settings.lock().unwrap().provider.is_none());
+                        if first_setup {
+                            show_settings(&app);
+                        }
+                    }
+                    _ => {}
                 }
             }
         })
@@ -525,6 +673,8 @@ pub fn run() {
             cancel_download,
             delete_model,
             request_accessibility,
+            dismiss_accessibility_prompt,
+            finish_accessibility_prompt,
             toggle_recording,
         ])
         .build(tauri::generate_context!())

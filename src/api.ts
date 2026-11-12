@@ -56,5 +56,7 @@ export const api = {
   cancelDownload: () => invoke<void>("cancel_download"),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
   requestAccessibility: () => invoke<boolean>("request_accessibility"),
+  dismissAccessibilityPrompt: () => invoke<void>("dismiss_accessibility_prompt"),
+  finishAccessibilityPrompt: () => invoke<void>("finish_accessibility_prompt"),
   toggleRecording: () => invoke<void>("toggle_recording"),
 };
