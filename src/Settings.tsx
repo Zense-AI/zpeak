@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, m } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -16,12 +17,46 @@ import {
 import { systemLang, translator, type Lang, type T } from "./i18n";
 import { acceleratorFromEvent, displayShortcut } from "./shortcut";
 import logo from "./app-icon.png";
+import zenseMark from "./logos/zense-mark.png";
+import zenseMarkDark from "./logos/zense-mark-dark.png";
+import openRouterMark from "./logos/openrouter-mark.png";
 
 const LANGUAGES = ["auto", "en", "zh", "yue", "ja", "ko", "fr", "de", "es"] as const;
 
 export function SettingsApp() {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [menu, setMenu] = useState<null | "language" | "settings">(null);
+  const actions = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      if (!actions.current?.contains(e.target as Node)) setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
+  const [panelHeight, setPanelHeight] = useState<number | "auto">("auto");
+  const panelObserver = useMemo(
+    () => new ResizeObserver(([e]) => setPanelHeight(e.borderBoxSize[0].blockSize)),
+    [],
+  );
+  const panelRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      panelObserver.disconnect();
+      if (el) panelObserver.observe(el);
+    },
+    [panelObserver],
+  );
 
   const refresh = useCallback(async () => setView(await api.state()), []);
   useEffect(() => {
@@ -52,15 +87,127 @@ export function SettingsApp() {
     }
   };
 
+  const provider = view.settings.provider;
+  const langLabel = lang === "en" ? "EN" : lang === "zh-hans" ? "简" : "繁";
+  const shortcut = displayShortcut(view.settings.shortcut, isMac);
+  const hold = view.settings.mode === "hold";
+
   return (
+    <LazyMotion features={domAnimation} strict>
+    <MotionConfig transition={EASE} reducedMotion="user">
     <main className="page">
-      <header className="hero">
-        <img src={logo} alt="" className="hero-logo" />
-        <div>
-          <h1>Zpeak</h1>
-          <p className="muted">
-            {t("tagline", { shortcut: displayShortcut(view.settings.shortcut, isMac) })}
-          </p>
+      <header className="topbar">
+        <div className="brand">
+          <img src={logo} alt="" className="brand-mark" />
+          <div>
+            <h1>Zpeak</h1>
+            <p className="muted small">
+              {t(hold ? "speakHold" : "speakToggle", { shortcut })}
+            </p>
+          </div>
+        </div>
+        <div className="top-actions" ref={actions}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-expanded={menu === "language"}
+            aria-label={t("languageTitle")}
+            onClick={() => setMenu((m) => (m === "language" ? null : "language"))}
+          >
+            {langLabel}
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-only"
+            aria-expanded={menu === "settings"}
+            aria-label={t("settingsMenu")}
+            onClick={() => setMenu((m) => (m === "settings" ? null : "settings"))}
+          >
+            <Gear />
+          </button>
+          <AnimatePresence>
+          {menu === "language" ? (
+            <m.div key="language" className="popover" role="menu" {...POP}>
+              <label className="row">
+                <span>{t("appLanguage")}</span>
+                <select
+                  value={view.settings.uiLanguage ?? ""}
+                  onChange={(e) => save({ uiLanguage: e.target.value || null })}
+                >
+                  <option value="">{t("appLanguageSystem")}</option>
+                  <option value="en">English</option>
+                  <option value="zh-hant">繁體中文</option>
+                  <option value="zh-hans">简体中文</option>
+                </select>
+              </label>
+              <label className="row">
+                <span>{t("spokenLanguage")}</span>
+                <select
+                  value={view.settings.language}
+                  onChange={(e) => save({ language: e.target.value })}
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>
+                      {t(`lang_${l}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </m.div>
+          ) : null}
+          {menu === "settings" ? (
+            <m.div key="settings" className="popover" {...POP}>
+              <ShortcutRow
+                value={view.settings.shortcut}
+                isMac={isMac}
+                t={t}
+                onChange={(shortcut) => save({ shortcut })}
+              />
+              <div className="segmented" role="radiogroup">
+                {(["toggle", "hold"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={view.settings.mode === mode}
+                    className={view.settings.mode === mode ? "on" : ""}
+                    onClick={() => save({ mode })}
+                  >
+                    {mode === "toggle" ? t("modeToggle") : t("modeHold")}
+                  </button>
+                ))}
+              </div>
+              <div className="rows">
+                <AutostartRow t={t} />
+                <label className="row">
+                  <span>{t("restoreClipboard")}</span>
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={view.settings.restoreClipboard}
+                    onChange={(e) => save({ restoreClipboard: e.target.checked })}
+                  />
+                </label>
+              </div>
+              {isMac && !view.accessibility ? (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={async () => {
+                    if (!(await api.requestAccessibility())) {
+                      await openUrl(
+                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+                      );
+                    }
+                  }}
+                >
+                  {t("accessibilityOpen")}
+                </button>
+              ) : null}
+              <Footer version={view.version} t={t} />
+            </m.div>
+          ) : null}
+          </AnimatePresence>
         </div>
       </header>
 
@@ -70,181 +217,126 @@ export function SettingsApp() {
         </p>
       ) : null}
 
-      <Section title={t("providerTitle")}>
-        <ProviderCard
-          id="zense"
-          active={view.settings.provider}
-          onSelect={(provider) => save({ provider })}
-          title={t("zenseTitle")}
-          badge={t("zenseBadge")}
-          desc={t("zenseDesc")}
-          t={t}
-        >
-          <ZensePanel view={view} t={t} err={err} onChange={refresh} />
-        </ProviderCard>
-        <ProviderCard
-          id="local"
-          active={view.settings.provider}
-          onSelect={(provider) => save({ provider })}
-          title={t("localTitle")}
-          desc={t("localDesc")}
-          t={t}
-        >
-          <LocalPanel view={view} t={t} err={err} onChange={refresh} save={save} />
-        </ProviderCard>
-        <ProviderCard
-          id="openrouter"
-          active={view.settings.provider}
-          onSelect={(provider) => save({ provider })}
-          title={t("openrouterTitle")}
-          desc={t("openrouterDesc")}
-          t={t}
-        >
-          <OpenRouterPanel view={view} t={t} err={err} onChange={refresh} save={save} />
-        </ProviderCard>
-      </Section>
+      <div className="listen">
+      <div className="choices" role="radiogroup" aria-label={t("providerTitle")}>
+        {(
+          [
+            ["zense", t("zenseTitle")],
+            ["local", t("listenLocal")],
+            ["openrouter", t("openrouterTitle")],
+          ] as const
+        ).map(([id, label], i) => (
+          <m.button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={provider === id}
+            className={`choice ${provider === id ? "on" : ""}`}
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: { ...EASE, delay: i * 0.04 } }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => save({ provider: id })}
+          >
+            <ProviderLogo id={id} />
+            <span>{label}</span>
+          </m.button>
+        ))}
+      </div>
 
-      <Section title={t("shortcutTitle")}>
-        <div className="card">
-          <ShortcutRow
-            value={view.settings.shortcut}
-            isMac={isMac}
-            t={t}
-            onChange={(shortcut) => save({ shortcut })}
-          />
-          <div className="segmented" role="radiogroup">
-            {(["toggle", "hold"] as const).map((mode) => (
-              <button
-                key={mode}
-                role="radio"
-                aria-checked={view.settings.mode === mode}
-                className={view.settings.mode === mode ? "on" : ""}
-                onClick={() => save({ mode })}
-              >
-                {mode === "toggle" ? t("modeToggle") : t("modeHold")}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Section>
+      <m.div className="card panel-card" initial={false} animate={{ height: panelHeight }}>
+        <m.div
+          key={provider ?? "none"}
+          ref={panelRef}
+          className="choice-panel"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+        {provider === "zense" ? (
+          <>
+            <p className="muted">{t("zenseDesc")}</p>
+            <ZensePanel view={view} t={t} err={err} onChange={refresh} />
+          </>
+        ) : provider === "local" ? (
+          <>
+            <p className="muted">{t("localDesc")}</p>
+            <LocalPanel view={view} t={t} err={err} onChange={refresh} save={save} />
+          </>
+        ) : provider === "openrouter" ? (
+          <>
+            <p className="muted">{t("openrouterDesc")}</p>
+            <OpenRouterPanel view={view} t={t} err={err} onChange={refresh} save={save} />
+          </>
+        ) : (
+          <p className="muted">{t("providerTitle")}</p>
+        )}
+        </m.div>
+      </m.div>
+      </div>
 
-      <Section title={t("languageTitle")}>
-        <div className="card rows">
-          <label className="row">
-            <span>{t("spokenLanguage")}</span>
-            <select
-              value={view.settings.language}
-              onChange={(e) => save({ language: e.target.value })}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l} value={l}>
-                  {t(`lang_${l}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="row">
-            <span>{t("appLanguage")}</span>
-            <select
-              value={view.settings.uiLanguage ?? ""}
-              onChange={(e) => save({ uiLanguage: e.target.value || null })}
-            >
-              <option value="">{t("appLanguageSystem")}</option>
-              <option value="en">English</option>
-              <option value="zh-hant">繁體中文</option>
-              <option value="zh-hans">简体中文</option>
-            </select>
-          </label>
-        </div>
-      </Section>
-
-      <Section title={t("tryTitle")}>
+      <section className="try-dock">
+        <h2>{t("tryTitle")}</h2>
         <textarea
           className="try"
           rows={3}
-          placeholder={t("tryPlaceholder", {
-            shortcut: displayShortcut(view.settings.shortcut, isMac),
-          })}
+          placeholder={t(hold ? "tryPlaceholderHold" : "tryPlaceholder", { shortcut })}
         />
-      </Section>
-
-      <Section title={t("generalTitle")}>
-        {isMac && !view.accessibility ? (
-          <div className="card notice">
-            <strong>{t("accessibilityTitle")}</strong>
-            <p className="muted">{t("accessibilityBody")}</p>
-            <button
-              className="btn"
-              onClick={async () => {
-                if (!(await api.requestAccessibility())) {
-                  await openUrl(
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-                  );
-                }
-              }}
-            >
-              {t("accessibilityOpen")}
-            </button>
-          </div>
-        ) : null}
-        <div className="card rows">
-          <AutostartRow t={t} />
-          <label className="row">
-            <span>{t("restoreClipboard")}</span>
-            <input
-              type="checkbox"
-              className="switch"
-              checked={view.settings.restoreClipboard}
-              onChange={(e) => save({ restoreClipboard: e.target.checked })}
-            />
-          </label>
-        </div>
-      </Section>
-
-      <Footer version={view.version} t={t} />
+      </section>
     </main>
+    </MotionConfig>
+    </LazyMotion>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+const EASE = { duration: 0.28, ease: [0.23, 1, 0.32, 1] } as const;
+
+const POP = {
+  initial: { opacity: 0, y: -4, scale: 0.97 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -4, scale: 0.97, transition: { duration: 0.16 } },
+} as const;
+
+function Gear() {
   return (
-    <section className="section">
-      <h2>{title}</h2>
-      {children}
-    </section>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M19.4 13.5a7.7 7.7 0 0 0 .1-1.5 7.7 7.7 0 0 0-.1-1.5l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-2.6-1.5L14 2h-4l-.4 2.5a7.4 7.4 0 0 0-2.6 1.5l-2.4-1-2 3.4 2 1.6a7.7 7.7 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 2.6 1.5L10 22h4l.4-2.5a7.4 7.4 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.6Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
-function ProviderCard(props: {
-  id: Provider;
-  active: Provider | null;
-  onSelect: (p: Provider) => void;
-  title: string;
-  badge?: string;
-  desc: string;
-  t: T;
-  children: React.ReactNode;
-}) {
-  const selected = props.active === props.id;
+function ProviderLogo({ id }: { id: Provider }) {
+  if (id === "zense") {
+    return (
+      <span className="choice-logo">
+        <img src={zenseMark} alt="" className="mark light" />
+        <img src={zenseMarkDark} alt="" className="mark dark" />
+      </span>
+    );
+  }
+  if (id === "openrouter") {
+    return (
+      <span className="choice-logo">
+        <img src={openRouterMark} alt="" className="mark" />
+      </span>
+    );
+  }
   return (
-    <div className={`card provider ${selected ? "selected" : ""}`}>
-      <label className="provider-head">
-        <input
-          type="radio"
-          name="provider"
-          checked={selected}
-          onChange={() => props.onSelect(props.id)}
-        />
-        <div>
-          <div className="provider-title">
-            {props.title}
-            {props.badge ? <span className="badge">{props.badge}</span> : null}
-          </div>
-          <p className="muted">{props.desc}</p>
-        </div>
-      </label>
-      {selected ? <div className="provider-body">{props.children}</div> : null}
-    </div>
+    <span className="choice-logo device" aria-hidden>
+      <svg viewBox="0 0 32 32" width="28" height="28">
+        <rect x="4" y="6" width="24" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M12 26h8M16 22v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        <path d="M10 14c1.2-2 2.2-2 3.2 0s2 2 3.2 0 2-2 3.2 0 2.2 2 3.4 0" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }
 
@@ -259,6 +351,7 @@ function ZensePanel({ view, t, err, onChange }: PanelProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const attempt = useRef(0);
 
   useEffect(() => {
     if (!view.zenseSignedIn) {
@@ -280,20 +373,61 @@ function ZensePanel({ view, t, err, onChange }: PanelProps) {
     };
   }, [onChange]);
 
+  // Closing the browser tab sends nothing back, so coming back to Zpeak frees
+  // the button. The browser flow keeps listening until a new attempt replaces it.
+  useEffect(() => {
+    if (!busy) return;
+    const onFocus = () => {
+      attempt.current++;
+      setBusy(false);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [busy]);
+
+  const signIn = async () => {
+    const id = ++attempt.current;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const p = await api.zenseSignIn();
+      setProfile(p);
+      await onChange();
+    } catch (e) {
+      const code = errorCode(e);
+      if (id === attempt.current && code !== "SignInAborted") setMessage(err(code));
+    } finally {
+      if (id === attempt.current) setBusy(false);
+    }
+  };
+
   if (view.zenseSignedIn && profile) {
     return (
       <div className="stack">
         <div className="row">
           <span>{t("zenseSignedInAs", { email: profile.email })}</span>
-          <button
-            className="btn ghost"
-            onClick={async () => {
-              await api.zenseSignOut();
-              await onChange();
-            }}
-          >
-            {t("zenseSignOut")}
-          </button>
+          <div className="row-actions">
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                await api.zenseSignOut();
+                setProfile(null);
+                await onChange();
+                await signIn();
+              }}
+            >
+              {t("zenseSwitchAccount")}
+            </button>
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                await api.zenseSignOut();
+                await onChange();
+              }}
+            >
+              {t("zenseSignOut")}
+            </button>
+          </div>
         </div>
         {!profile.eligible ? <p className="warn">{t("zenseIneligible")}</p> : null}
       </div>
@@ -302,23 +436,7 @@ function ZensePanel({ view, t, err, onChange }: PanelProps) {
 
   return (
     <div className="stack">
-      <button
-        className="btn primary"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setMessage(null);
-          try {
-            const p = await api.zenseSignIn();
-            setProfile(p);
-            await onChange();
-          } catch (e) {
-            setMessage(err(errorCode(e)));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
+      <button className="btn primary" disabled={busy} onClick={signIn}>
         {busy ? t("zenseSigningIn") : t("zenseSignIn")}
       </button>
       {message ? <p className="warn">{message}</p> : null}

@@ -22,15 +22,15 @@ function keyName(code: string): string | null {
   return null;
 }
 
-const MAC_SYMBOLS: Record<string, string> = {
-  Control: "⌃",
-  Alt: "⌥",
-  Shift: "⇧",
-  Command: "⌘",
+const MAC_NAMES: Record<string, string> = {
+  Control: "⌃ Control",
+  Alt: "⌥ Option",
+  Shift: "⇧ Shift",
+  Command: "⌘ Command",
 };
 
 export function displayShortcut(accel: string, isMac: boolean): string {
   const parts = accel.split("+");
-  if (isMac) return parts.map((p) => MAC_SYMBOLS[p] ?? p).join("");
+  if (isMac) return parts.map((p) => MAC_NAMES[p] ?? p).join(" + ");
   return parts.map((p) => (p === "Control" ? "Ctrl" : p === "Super" ? "Win" : p)).join(" + ");
 }

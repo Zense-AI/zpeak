@@ -8,6 +8,8 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
@@ -51,6 +53,8 @@ pub struct Profile {
 pub struct ZenseClient {
     http: reqwest::Client,
     lock: Mutex<()>,
+    /// Cancel flag of the sign-in still waiting for the browser, if any.
+    pending: std::sync::Mutex<Option<Arc<AtomicBool>>>,
 }
 
 fn now() -> u64 {
@@ -103,16 +107,25 @@ fn page(title: &str, body: &str) -> tiny_http::Response<std::io::Cursor<Vec<u8>>
     )
 }
 
-/// Blocks (on a worker thread) until the browser hits the loopback callback.
-fn wait_for_code(server: tiny_http::Server, state: String) -> Result<String, String> {
+/// Blocks (on a worker thread) until the browser hits the loopback callback,
+/// or a newer sign-in replaces this one.
+fn wait_for_code(
+    server: tiny_http::Server,
+    state: String,
+    cancelled: Arc<AtomicBool>,
+) -> Result<String, String> {
     let deadline = std::time::Instant::now() + SIGN_IN_TIMEOUT;
     loop {
+        if cancelled.load(Ordering::Relaxed) {
+            return Err("SignInAborted".into());
+        }
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             return Err("SignInTimedOut".into());
         }
-        let Some(req) = server.recv_timeout(left).map_err(|e| e.to_string())? else {
-            return Err("SignInTimedOut".into());
+        let wait = left.min(Duration::from_millis(250));
+        let Some(req) = server.recv_timeout(wait).map_err(|e| e.to_string())? else {
+            continue;
         };
         let url = match url::Url::parse(&format!("http://127.0.0.1{}", req.url())) {
             Ok(u) => u,
@@ -160,6 +173,14 @@ impl ZenseClient {
                 .build()
                 .expect("http client"),
             lock: Mutex::new(()),
+            pending: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Stops waiting for the browser. A code that already arrived is still exchanged.
+    pub fn cancel_sign_in(&self) {
+        if let Some(flag) = self.pending.lock().unwrap().take() {
+            flag.store(true, Ordering::Relaxed);
         }
     }
 
@@ -186,11 +207,22 @@ impl ZenseClient {
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", &state)
             .append_pair("device_name", &device);
+        self.cancel_sign_in();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        *self.pending.lock().unwrap() = Some(cancelled.clone());
         open_url(authorize.as_str())?;
 
-        let code = tokio::task::spawn_blocking(move || wait_for_code(server, state))
+        let flag = cancelled.clone();
+        let code = tokio::task::spawn_blocking(move || wait_for_code(server, state, flag))
             .await
-            .map_err(|e| e.to_string())??;
+            .map_err(|e| e.to_string());
+        {
+            let mut pending = self.pending.lock().unwrap();
+            if pending.as_ref().is_some_and(|p| Arc::ptr_eq(p, &cancelled)) {
+                *pending = None;
+            }
+        }
+        let code = code??;
 
         let res = self
             .http
@@ -357,7 +389,8 @@ mod tests {
     fn callback_rejects_wrong_state_then_accepts_right_one() {
         let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
         let port = server.server_addr().to_ip().unwrap().port();
-        let handle = std::thread::spawn(move || wait_for_code(server, "good-state".into()));
+        let flag = Arc::new(AtomicBool::new(false));
+        let handle = std::thread::spawn(move || wait_for_code(server, "good-state".into(), flag));
         let get = |path: &str| {
             use std::io::{Read, Write};
             let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
